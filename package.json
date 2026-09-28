@@ -1,0 +1,21 @@
+{
+  "name": "galerie-privee",
+  "version": "1.0.0",
+  "description": "Galerie privée avec code d'accès et tri automatique des vidéos/photos",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "multer": "^1.4.5-lts.1",
+    "fluent-ffmpeg": "^2.1.2",
+    "ffmpeg-static": "^5.2.0",
+    "ffprobe-static": "^3.1.0",
+    "image-size": "^1.1.1",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
