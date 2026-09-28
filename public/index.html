@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Galerie Privée</title>
+<style>
+:root{
+  --bg:#0f0f13; --bg2:#17171d; --card:#1d1d24; --text:#f1f1f5; --muted:#9898a3;
+  --accent:#7c5cff; --border:#2a2a33; --radius:14px;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;margin:0;}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow-x:hidden;}
+button{font-family:inherit;cursor:pointer;}
+h1,h2,h3{margin:0 0 4px;}
+p{margin:0;color:var(--muted);}
+.screen{min-height:100vh;display:flex;flex-direction:column;padding:16px;}
+.hidden{display:none !important;}
+#lock{align-items:center;justify-content:center;text-align:center;gap:18px;}
+#lock .icon{font-size:44px;}
+#pinDots{display:flex;gap:12px;}
+.dot{width:14px;height:14px;border-radius:50%;border:2px solid var(--muted);}
+.dot.filled{background:var(--accent);border-color:var(--accent);}
+#pad{display:grid;grid-template-columns:repeat(3,64px);gap:14px;margin-top:8px;}
+.key{width:64px;height:64px;border-radius:50%;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:20px;}
+.key:active{background:var(--accent);color:#fff;}
+#lockMsg{min-height:18px;color:var(--accent);font-size:13px;}
+#app{max-width:520px;margin:0 auto;width:100%;padding-bottom:40px;}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:8px 0 16px;}
+.iconbtn{background:none;border:none;color:var(--text);font-size:20px;padding:6px;}
+.section-title{display:flex;justify-content:space-between;align-items:center;margin:18px 0 10px;}
+.section-title h2{font-size:15px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;}
+.addbtn{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:8px 12px;font-size:13px;font-weight:600;}
+.inbox-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;}
+.inbox-card .n{font-size:26px;font-weight:700;}
+.folders{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
+.folder{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:12px;position:relative;}
+.folder h3{font-size:14px;}
+.folder p{font-size:12px;margin-top:2px;}
+.folder .count{position:absolute;top:10px;right:12px;background:var(--bg2);border-radius:8px;padding:2px 7px;font-size:12px;color:var(--muted);}
+.empty{color:var(--muted);font-size:13px;padding:14px 0;}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;}
+.thumb{position:relative;aspect-ratio:1/1;border-radius:8px;overflow:hidden;background:var(--bg2);border:1px solid var(--border);}
+.thumb img,.thumb video{width:100%;height:100%;object-fit:cover;}
+.thumb .badge{position:absolute;bottom:3px;right:4px;background:rgba(0,0,0,.6);color:#fff;font-size:10px;padding:1px 4px;border-radius:5px;}
+.overlay{position:fixed;inset:0;background:var(--bg);z-index:20;display:flex;flex-direction:column;padding:16px;overflow-y:auto;}
+.overlay .head{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.overlay .head h2{font-size:17px;flex:1;}
+.form-row{margin-bottom:14px;}
+.form-row label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px;}
+.form-row input[type=text]{width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);color:var(--text);font-size:15px;}
+.chips{display:flex;gap:8px;flex-wrap:wrap;}
+.chip{padding:7px 12px;border-radius:20px;border:1px solid var(--border);background:var(--bg2);color:var(--muted);font-size:13px;}
+.chip.active{background:var(--accent);border-color:var(--accent);color:#fff;}
+.primary{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:12px;font-size:15px;font-weight:600;width:100%;margin-top:8px;}
+.danger{background:none;border:1px solid #e0455c;color:#e0455c;border-radius:10px;padding:10px;font-size:13px;width:100%;margin-top:10px;}
+.viewer-media{flex:1;display:flex;align-items:center;justify-content:center;}
+.viewer-media img,.viewer-media video{max-width:100%;max-height:100%;border-radius:10px;}
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--card);border:1px solid var(--border);padding:10px 16px;border-radius:10px;font-size:13px;z-index:40;opacity:0;transition:opacity .2s;pointer-events:none;}
+#toast.show{opacity:1;}
+</style>
+</head>
+<body>
+
+<div id="lock" class="screen">
+  <div class="icon">🔒</div>
+  <h1>Galerie privée</h1>
+  <p>Entre ton code</p>
+  <div id="pinDots"></div>
+  <div id="pad">
+    <button class="key" data-k="1">1</button><button class="key" data-k="2">2</button><button class="key" data-k="3">3</button>
+    <button class="key" data-k="4">4</button><button class="key" data-k="5">5</button><button class="key" data-k="6">6</button>
+    <button class="key" data-k="7">7</button><button class="key" data-k="8">8</button><button class="key" data-k="9">9</button>
+    <div></div><button class="key" data-k="0">0</button><button class="key" data-k="del">⌫</button>
+  </div>
+  <div id="lockMsg"></div>
+</div>
+
+<div id="app" class="screen hidden">
+  <div class="topbar">
+    <h1 style="font-size:19px;">Ma galerie</h1>
+    <button class="iconbtn" id="relockBtn" title="Verrouiller">🔒</button>
+  </div>
+
+  <div class="inbox-card" id="inboxCard">
+    <div>
+      <p>Dossier à trier</p>
+      <div class="n" id="inboxCount">0</div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end;">
+      <button class="addbtn" id="addFilesBtn">+ Ajouter</button>
+      <button class="addbtn" id="sortNowBtn" style="background:var(--bg2);color:var(--text);border:1px solid var(--border);">Trier</button>
+    </div>
+  </div>
+  <input type="file" id="fileInput" accept="video/*,image/*" multiple class="hidden">
+
+  <div class="section-title">
+    <h2>Dossiers</h2>
+    <button class="addbtn" id="newFolderBtn">+ Nouveau</button>
+  </div>
+  <div class="folders" id="folderGrid"></div>
+</div>
+
+<div id="folderOverlay" class="overlay hidden">
+  <div class="head"><button class="iconbtn" id="closeFolderOverlay">←</button><h2>Nouveau dossier</h2></div>
+  <div class="form-row">
+    <label>Nom</label>
+    <input type="text" id="folderName" placeholder="Ex : Stories, Vlogs...">
+  </div>
+  <div class="form-row">
+    <label>Format</label>
+    <div class="chips" id="orientChips">
+      <div class="chip active" data-v="any">Tous</div>
+      <div class="chip" data-v="portrait">Portrait</div>
+      <div class="chip" data-v="landscape">Paysage</div>
+      <div class="chip" data-v="square">Carré</div>
+    </div>
+  </div>
+  <div class="form-row">
+    <label>Durée (vidéos)</label>
+    <div class="chips" id="durChips">
+      <div class="chip active" data-v="any">Toutes</div>
+      <div class="chip" data-v="short">Courte (&lt; 30s)</div>
+      <div class="chip" data-v="long">Longue (≥ 30s)</div>
+    </div>
+  </div>
+  <button class="primary" id="saveFolderBtn">Créer le dossier</button>
+</div>
+
+<div id="viewOverlay" class="overlay hidden">
+  <div class="head"><button class="iconbtn" id="closeViewOverlay">←</button><h2 id="viewTitle"></h2></div>
+  <div class="grid" id="viewGrid"></div>
+  <div class="empty hidden" id="viewEmpty">Aucun fichier ici pour l'instant.</div>
+  <button class="danger hidden" id="deleteFolderBtn">Supprimer ce dossier</button>
+</div>
+
+<div id="mediaOverlay" class="overlay hidden">
+  <div class="head"><button class="iconbtn" id="closeMediaOverlay">←</button><h2 id="mediaTitle" style="font-size:14px;color:var(--muted);"></h2></div>
+  <div class="viewer-media" id="mediaContent"></div>
+  <button class="danger" id="deleteFileBtn">Supprimer ce fichier</button>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = '';
+let token = localStorage.getItem('gp_token') || '';
+let files = [], folders = [], currentFolder = null;
+
+function toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('show'); setTimeout(()=>t.classList.remove('show'),1800); }
+function authHeaders(extra){ return Object.assign({'x-pin': token}, extra||{}); }
+
+// ---------- Lock screen ----------
+const lockEl=document.getElementById('lock'), appEl=document.getElementById('app');
+const pinDots=document.getElementById('pinDots'), lockMsg=document.getElementById('lockMsg');
+let pinBuffer='';
+function renderDots(){ pinDots.innerHTML=''; for(let i=0;i<4;i++){ const d=document.createElement('div'); d.className='dot'+(i<pinBuffer.length?' filled':''); pinDots.appendChild(d);} }
+document.getElementById('pad').addEventListener('click', e=>{
+  const k=e.target.closest('.key'); if(!k) return;
+  const v=k.dataset.k;
+  if(v==='del'){ pinBuffer=pinBuffer.slice(0,-1); lockMsg.textContent=''; renderDots(); return; }
+  if(pinBuffer.length>=4) return;
+  pinBuffer+=v; renderDots();
+  if(pinBuffer.length===4) setTimeout(tryLogin, 120);
+});
+async function tryLogin(){
+  const res = await fetch(API+'/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin:pinBuffer})});
+  const data = await res.json();
+  if(data.ok){ token=data.token; localStorage.setItem('gp_token', token); unlock(); }
+  else { lockMsg.textContent='Code incorrect'; pinBuffer=''; renderDots(); }
+}
+function unlock(){ lockEl.classList.add('hidden'); appEl.classList.remove('hidden'); pinBuffer=''; lockMsg.textContent=''; refreshAll(); }
+document.getElementById('relockBtn').addEventListener('click', ()=>{ appEl.classList.add('hidden'); lockEl.classList.remove('hidden'); renderDots(); });
+if(token){ unlock(); } else { renderDots(); }
+
+// ---------- Data loading ----------
+async function loadFiles(){ const res=await fetch(API+'/api/files',{headers:authHeaders()}); files = res.ok ? await res.json() : []; }
+async function loadFolders(){ const res=await fetch(API+'/api/folders',{headers:authHeaders()}); folders = res.ok ? await res.json() : []; }
+async function refreshAll(){ await loadFiles(); await loadFolders(); renderApp(); }
+
+// ---------- Upload ----------
+document.getElementById('addFilesBtn').addEventListener('click', ()=>document.getElementById('fileInput').click());
+document.getElementById('fileInput').addEventListener('change', async (e)=>{
+  const list = Array.from(e.target.files||[]);
+  if(list.length===0) return;
+  const fd = new FormData();
+  list.forEach(f=>fd.append('files', f));
+  toast('Envoi en cours...');
+  const res = await fetch(API+'/api/upload',{method:'POST',headers:authHeaders(),body:fd});
+  if(res.ok){ await refreshAll(); toast(list.length+' fichier(s) ajouté(s)'); } else { toast('Erreur pendant l\'envoi'); }
+  e.target.value='';
+});
+document.getElementById('sortNowBtn').addEventListener('click', async ()=>{
+  const res = await fetch(API+'/api/sort',{method:'POST',headers:authHeaders()});
+  const data = await res.json();
+  files = data.files || files;
+  renderApp();
+  toast((data.moved||0)+' fichier(s) trié(s)');
+});
+
+// ---------- Folder creation ----------
+const folderOverlay=document.getElementById('folderOverlay');
+document.getElementById('newFolderBtn').addEventListener('click', ()=>{
+  document.getElementById('folderName').value='';
+  document.querySelectorAll('#orientChips .chip').forEach(c=>c.classList.toggle('active', c.dataset.v==='any'));
+  document.querySelectorAll('#durChips .chip').forEach(c=>c.classList.toggle('active', c.dataset.v==='any'));
+  folderOverlay.classList.remove('hidden');
+});
+document.getElementById('closeFolderOverlay').addEventListener('click', ()=>folderOverlay.classList.add('hidden'));
+document.querySelectorAll('#orientChips .chip').forEach(c=>c.addEventListener('click', ()=>{ document.querySelectorAll('#orientChips .chip').forEach(x=>x.classList.remove('active')); c.classList.add('active'); }));
+document.querySelectorAll('#durChips .chip').forEach(c=>c.addEventListener('click', ()=>{ document.querySelectorAll('#durChips .chip').forEach(x=>x.classList.remove('active')); c.classList.add('active'); }));
+document.getElementById('saveFolderBtn').addEventListener('click', async ()=>{
+  const name=document.getElementById('folderName').value.trim();
+  if(!name){ toast('Donne un nom au dossier'); return; }
+  const orient=document.querySelector('#orientChips .chip.active').dataset.v;
+  const dur=document.querySelector('#durChips .chip.active').dataset.v;
+  await fetch(API+'/api/folders',{method:'POST',headers:authHeaders({'Content-Type':'application/json'}),body:JSON.stringify({name,orient,dur})});
+  await fetch(API+'/api/sort',{method:'POST',headers:authHeaders()});
+  folderOverlay.classList.add('hidden');
+  await refreshAll();
+});
+
+// ---------- Rendering ----------
+function renderApp(){
+  document.getElementById('inboxCount').textContent = files.filter(f=>!f.folderId).length;
+  const grid=document.getElementById('folderGrid'); grid.innerHTML='';
+  folders.forEach(fo=>{
+    const count = files.filter(f=>f.folderId===fo.id).length;
+    const div=document.createElement('div'); div.className='folder';
+    const orientLabel={any:'Tous formats',portrait:'Portrait',landscape:'Paysage',square:'Carré'}[fo.orient];
+    const durLabel={any:'',short:' · court',long:' · long'}[fo.dur];
+    div.innerHTML = '<div class="count">'+count+'</div><h3>'+fo.name+'</h3><p>'+orientLabel+durLabel+'</p>';
+    div.addEventListener('click', ()=>openFolder(fo));
+    grid.appendChild(div);
+  });
+  if(folders.length===0){ grid.innerHTML='<div class="empty">Crée ton premier dossier pour commencer le tri.</div>'; }
+}
+document.getElementById('inboxCard').addEventListener('click', (e)=>{ if(e.target.closest('button')) return; openFolder({id:null, name:'Dossier à trier'}); });
+
+const viewOverlay=document.getElementById('viewOverlay');
+function openFolder(fo){
+  currentFolder = fo;
+  document.getElementById('viewTitle').textContent = fo.name;
+  document.getElementById('deleteFolderBtn').classList.toggle('hidden', fo.id===null);
+  const list = files.filter(f=> fo.id===null ? !f.folderId : f.folderId===fo.id);
+  const grid=document.getElementById('viewGrid'); grid.innerHTML='';
+  document.getElementById('viewEmpty').classList.toggle('hidden', list.length>0);
+  list.forEach(rec=>{
+    const t=document.createElement('div'); t.className='thumb';
+    const media = rec.type==='video' ? document.createElement('video') : document.createElement('img');
+    media.src=rec.url; if(rec.type==='video'){ media.muted=true; }
+    t.appendChild(media);
+    const badge=document.createElement('div'); badge.className='badge';
+    badge.textContent = rec.type==='video' ? Math.round(rec.duration)+'s' : rec.orientation;
+    t.appendChild(badge);
+    t.addEventListener('click', ()=>openMedia(rec));
+    grid.appendChild(t);
+  });
+  viewOverlay.classList.remove('hidden');
+}
+document.getElementById('closeViewOverlay').addEventListener('click', ()=>viewOverlay.classList.add('hidden'));
+document.getElementById('deleteFolderBtn').addEventListener('click', async ()=>{
+  if(!currentFolder || currentFolder.id===null) return;
+  if(!confirm('Supprimer ce dossier ? Les fichiers repasseront dans "à trier".')) return;
+  await fetch(API+'/api/folders/'+currentFolder.id,{method:'DELETE',headers:authHeaders()});
+  viewOverlay.classList.add('hidden');
+  await refreshAll();
+});
+
+let currentMedia=null;
+const mediaOverlay=document.getElementById('mediaOverlay');
+function openMedia(rec){
+  currentMedia = rec;
+  document.getElementById('mediaTitle').textContent = rec.name;
+  const c=document.getElementById('mediaContent'); c.innerHTML='';
+  const media = rec.type==='video' ? document.createElement('video') : document.createElement('img');
+  media.src=rec.url; if(rec.type==='video'){ media.controls=true; media.autoplay=true; }
+  c.appendChild(media);
+  mediaOverlay.classList.remove('hidden');
+}
+document.getElementById('closeMediaOverlay').addEventListener('click', ()=>{ mediaOverlay.classList.add('hidden'); document.getElementById('mediaContent').innerHTML=''; });
+document.getElementById('deleteFileBtn').addEventListener('click', async ()=>{
+  if(!currentMedia) return;
+  if(!confirm('Supprimer ce fichier définitivement ?')) return;
+  await fetch(API+'/api/files/'+currentMedia.id,{method:'DELETE',headers:authHeaders()});
+  mediaOverlay.classList.add('hidden');
+  await refreshAll();
+  if(currentFolder) openFolder(currentFolder);
+});
+</script>
+</body>
+</html>
