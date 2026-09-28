@@ -13,16 +13,17 @@ ffmpeg.setFfprobePath(ffprobePath);
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const PIN = process.env.GALLERY_PIN || '1234'; // change-le sur Render (variable d'environnement)
 
 const DATA_DIR = path.join(__dirname, 'data');
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
 const META_FILE = path.join(DATA_DIR, 'meta.json');
 const FOLDERS_FILE = path.join(DATA_DIR, 'folders.json');
+const USERS_FILE = path.join(DATA_DIR, 'users.json');
 
 if (!fs.existsSync(UPLOAD_DIR)) fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 if (!fs.existsSync(META_FILE)) fs.writeFileSync(META_FILE, '[]');
 if (!fs.existsSync(FOLDERS_FILE)) fs.writeFileSync(FOLDERS_FILE, '[]');
+if (!fs.existsSync(USERS_FILE)) fs.writeFileSync(USERS_FILE, '[]');
 
 function readJSON(file) { return JSON.parse(fs.readFileSync(file, 'utf8')); }
 function writeJSON(file, data) { fs.writeFileSync(file, JSON.stringify(data, null, 2)); }
@@ -31,17 +32,41 @@ app.use(express.json());
 app.use('/uploads', express.static(UPLOAD_DIR));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// ---------- Comptes : chacun crée le sien à la première connexion ----------
 app.post('/api/login', (req, res) => {
-  const { pin } = req.body;
-  if (pin === PIN) res.json({ ok: true, token: PIN });
-  else res.status(401).json({ ok: false, error: 'Code incorrect' });
+  const username = (req.body.username || '').trim();
+  const pin = (req.body.pin || '').trim();
+  if (!username || pin.length !== 4) {
+    return res.status(400).json({ ok: false, error: 'Pseudo et code à 4 chiffres requis' });
+  }
+  const users = readJSON(USERS_FILE);
+  const existing = users.find(u => u.username.toLowerCase() === username.toLowerCase());
+
+  if (!existing) {
+    // Nouveau pseudo : on crée le compte avec ce code
+    const user = { id: 'u' + Date.now() + Math.round(Math.random() * 1e6), username, pin };
+    users.push(user);
+    writeJSON(USERS_FILE, users);
+    return res.json({ ok: true, created: true, username: user.username });
+  }
+
+  if (existing.pin !== pin) {
+    return res.status(401).json({ ok: false, error: 'Code incorrect pour ce pseudo' });
+  }
+  res.json({ ok: true, created: false, username: existing.username });
 });
 
 function requireAuth(req, res, next) {
-  if (req.header('x-pin') === PIN) return next();
-  res.status(401).json({ error: 'Non autorisé' });
+  const username = req.header('x-username') || '';
+  const pin = req.header('x-pin') || '';
+  const users = readJSON(USERS_FILE);
+  const user = users.find(u => u.username.toLowerCase() === username.toLowerCase() && u.pin === pin);
+  if (!user) return res.status(401).json({ error: 'Non autorisé' });
+  req.userId = user.id;
+  next();
 }
 
+// ---------- Upload + analyse des fichiers ----------
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, UPLOAD_DIR),
   filename: (req, file, cb) => {
@@ -82,7 +107,7 @@ function matchesFolder(rec, folder) {
 
 app.post('/api/upload', requireAuth, upload.array('files', 30), async (req, res) => {
   const meta = readJSON(META_FILE);
-  const folders = readJSON(FOLDERS_FILE);
+  const folders = readJSON(FOLDERS_FILE).filter(f => f.userId === req.userId);
   const newRecords = [];
 
   for (const file of req.files) {
@@ -100,6 +125,7 @@ app.post('/api/upload', requireAuth, upload.array('files', 30), async (req, res)
 
     const record = {
       id: path.parse(file.filename).name,
+      userId: req.userId,
       name: file.originalname,
       type: isVideo ? 'video' : 'image',
       mime: file.mimetype,
@@ -122,31 +148,35 @@ app.post('/api/upload', requireAuth, upload.array('files', 30), async (req, res)
   res.json({ ok: true, files: newRecords });
 });
 
+// ---------- Fichiers (uniquement ceux de l'utilisateur connecté) ----------
 app.get('/api/files', requireAuth, (req, res) => {
-  res.json(readJSON(META_FILE));
+  const meta = readJSON(META_FILE).filter(f => f.userId === req.userId);
+  res.json(meta);
 });
 
 app.delete('/api/files/:id', requireAuth, (req, res) => {
   let meta = readJSON(META_FILE);
-  const rec = meta.find(f => f.id === req.params.id);
+  const rec = meta.find(f => f.id === req.params.id && f.userId === req.userId);
   if (rec) {
     const filePath = path.join(UPLOAD_DIR, path.basename(rec.url));
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    meta = meta.filter(f => f.id !== req.params.id);
+    writeJSON(META_FILE, meta);
   }
-  meta = meta.filter(f => f.id !== req.params.id);
-  writeJSON(META_FILE, meta);
   res.json({ ok: true });
 });
 
+// ---------- Dossiers (uniquement ceux de l'utilisateur connecté) ----------
 app.get('/api/folders', requireAuth, (req, res) => {
-  res.json(readJSON(FOLDERS_FILE));
+  const folders = readJSON(FOLDERS_FILE).filter(f => f.userId === req.userId);
+  res.json(folders);
 });
 
 app.post('/api/folders', requireAuth, (req, res) => {
   const { name, orient, dur } = req.body;
   if (!name) return res.status(400).json({ error: 'Nom requis' });
   const folders = readJSON(FOLDERS_FILE);
-  const folder = { id: 'd' + Date.now(), name, orient: orient || 'any', dur: dur || 'any' };
+  const folder = { id: 'd' + Date.now(), userId: req.userId, name, orient: orient || 'any', dur: dur || 'any' };
   folders.push(folder);
   writeJSON(FOLDERS_FILE, folders);
   res.json({ ok: true, folder });
@@ -154,26 +184,29 @@ app.post('/api/folders', requireAuth, (req, res) => {
 
 app.delete('/api/folders/:id', requireAuth, (req, res) => {
   let folders = readJSON(FOLDERS_FILE);
+  const target = folders.find(f => f.id === req.params.id && f.userId === req.userId);
+  if (!target) return res.json({ ok: true });
   folders = folders.filter(f => f.id !== req.params.id);
   writeJSON(FOLDERS_FILE, folders);
   let meta = readJSON(META_FILE);
-  meta.forEach(f => { if (f.folderId === req.params.id) f.folderId = null; });
+  meta.forEach(f => { if (f.folderId === req.params.id && f.userId === req.userId) f.folderId = null; });
   writeJSON(META_FILE, meta);
   res.json({ ok: true });
 });
 
+// ---------- Re-tri manuel ----------
 app.post('/api/sort', requireAuth, (req, res) => {
   const meta = readJSON(META_FILE);
-  const folders = readJSON(FOLDERS_FILE);
+  const folders = readJSON(FOLDERS_FILE).filter(f => f.userId === req.userId);
   let moved = 0;
   meta.forEach(rec => {
-    if (!rec.folderId) {
+    if (rec.userId === req.userId && !rec.folderId) {
       const match = folders.find(fo => matchesFolder(rec, fo));
       if (match) { rec.folderId = match.id; moved++; }
     }
   });
   writeJSON(META_FILE, meta);
-  res.json({ ok: true, moved, files: meta });
+  res.json({ ok: true, moved, files: meta.filter(f => f.userId === req.userId) });
 });
 
 app.listen(PORT, () => console.log('Galerie privée lancée sur le port ' + PORT));
